@@ -3,10 +3,11 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
-import type { InventoryItem, Profile, Rating, Recipe } from './domain/types';
+import type { InventoryItem, Profile, Rating, Recipe, ShoppingItem } from './domain/types';
 import * as repo from './db/repo';
 import { BUILTIN_RECIPES } from './data/recipes';
 import { rescheduleNudges } from './notifications';
+import { makeVariant, parseVariantId } from './domain/variants';
 
 interface AppData {
   ready: boolean;
@@ -18,11 +19,20 @@ interface AppData {
   allRecipes: Recipe[];
   recentCooks: string[];
   stats: { used: number; tossed: number };
+  shopping: ShoppingItem[];
+  usedCounts: Map<string, number>;
   refresh: () => Promise<void>;
   findRecipe: (id: string) => Recipe | undefined;
 }
 
 const Ctx = createContext<AppData | null>(null);
+
+/** Temporary home for AI results that haven't been saved yet. */
+const pending = new Map<string, Recipe>();
+export const pendingRecipes = {
+  put: (r: Recipe) => pending.set(r.id, r),
+  get: (id: string) => pending.get(id),
+};
 
 interface Loaded {
   items: InventoryItem[];
@@ -31,18 +41,22 @@ interface Loaded {
   savedRecipes: Recipe[];
   recentCooks: string[];
   stats: { used: number; tossed: number };
+  shopping: ShoppingItem[];
+  usedCounts: Map<string, number>;
 }
 
 async function loadAll(db: SQLiteDatabase): Promise<Loaded> {
-  const [items, profile, ratings, savedRecipes, recentCooks, stats] = await Promise.all([
+  const [items, profile, ratings, savedRecipes, recentCooks, stats, shopping, usedCounts] = await Promise.all([
     repo.listItems(db),
     repo.getProfile(db),
     repo.listRatings(db),
     repo.listSavedRecipes(db),
     repo.recentCooks(db),
     repo.wasteStats(db),
+    repo.listShopping(db),
+    repo.usedCounts(db),
   ]);
-  return { items, profile, ratings, savedRecipes, recentCooks, stats };
+  return { items, profile, ratings, savedRecipes, recentCooks, stats, shopping, usedCounts };
 }
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
@@ -74,6 +88,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       savedRecipes: [],
       recentCooks: [],
       stats: { used: 0, tossed: 0 },
+      shopping: [],
+      usedCounts: new Map<string, number>(),
     };
     const allRecipes = [...d.savedRecipes, ...BUILTIN_RECIPES];
     return {
@@ -81,7 +97,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       ready: loaded !== null,
       allRecipes,
       refresh,
-      findRecipe: (id) => allRecipes.find((r) => r.id === id),
+      findRecipe: (id) => {
+        const direct = allRecipes.find((r) => r.id === id) ?? pending.get(id);
+        if (direct) return direct;
+        const { baseId, style } = parseVariantId(id);
+        const base = allRecipes.find((r) => r.id === baseId) ?? pending.get(baseId);
+        return base ? makeVariant(base, style, d.profile.allergies).recipe : undefined;
+      },
     };
   }, [loaded, refresh]);
 
@@ -94,9 +116,3 @@ export function useAppData(): AppData {
   return v;
 }
 
-/** Temporary home for AI results that haven't been saved yet. */
-const pending = new Map<string, Recipe>();
-export const pendingRecipes = {
-  put: (r: Recipe) => pending.set(r.id, r),
-  get: (id: string) => pending.get(id),
-};

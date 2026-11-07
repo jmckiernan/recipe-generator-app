@@ -30,6 +30,7 @@ export default function RootLayout() {
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="recipe/[id]" options={{ title: 'Recipe' }} />
+            <Stack.Screen name="meal-prep" options={{ title: 'Meal prep' }} />
           </Stack>
         </AppDataProvider>
       </SQLiteProvider>

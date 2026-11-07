@@ -9,10 +9,12 @@ import type {
   QtyLevel,
   Rating,
   Recipe,
+  ShoppingItem,
 } from '../domain/types';
 import type { InventoryChange } from '../domain/inventory';
 import { categorize, defaultLocation, estimateExpiry, toISODate } from '../domain/shelfLife';
 import { DEFAULT_STAPLES } from '../data/recipes';
+import { coreName, ingredientMatches } from '../domain/normalize';
 
 interface ItemRow {
   id: number;
@@ -231,4 +233,77 @@ export async function recentCooks(db: SQLiteDatabase, limit = 10): Promise<strin
     limit,
   );
   return rows.map((r) => r.title);
+}
+
+// ---------- Shopping list ----------
+
+export async function listShopping(db: SQLiteDatabase): Promise<ShoppingItem[]> {
+  const rows = await db.getAllAsync<{ id: number; name: string; reason: string; checked: number; added_at: string }>(
+    'SELECT * FROM shopping ORDER BY checked ASC, added_at ASC',
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name, reason: r.reason, checked: r.checked === 1, addedAt: r.added_at }));
+}
+
+/** Adds items not already on the list (unchecked). Returns how many were added. */
+export async function addToShopping(
+  db: SQLiteDatabase,
+  entries: { name: string; reason?: string }[],
+): Promise<number> {
+  const current = await listShopping(db);
+  let added = 0;
+  for (const e of entries) {
+    const name = e.name.trim().toLowerCase();
+    if (!name) continue;
+    const dupe = current.some(
+      (c) => !c.checked && (coreName(c.name) === coreName(name) || ingredientMatches(c.name, name)),
+    );
+    if (dupe) continue;
+    await db.runAsync(
+      'INSERT INTO shopping (name, reason, checked, added_at) VALUES (?, ?, 0, ?)',
+      name,
+      e.reason ?? '',
+      new Date().toISOString(),
+    );
+    current.push({ id: -1, name, reason: '', checked: false, addedAt: '' });
+    added += 1;
+  }
+  return added;
+}
+
+export async function setShoppingChecked(db: SQLiteDatabase, id: number, checked: boolean): Promise<void> {
+  await db.runAsync('UPDATE shopping SET checked = ? WHERE id = ?', checked ? 1 : 0, id);
+}
+
+export async function removeShopping(db: SQLiteDatabase, id: number): Promise<void> {
+  await db.runAsync('DELETE FROM shopping WHERE id = ?', id);
+}
+
+/** "I'm home from the store": checked items move into My Food. */
+export async function moveCheckedToInventory(db: SQLiteDatabase): Promise<number> {
+  const checked = (await listShopping(db)).filter((i) => i.checked);
+  for (const i of checked) {
+    await addItem(db, { name: i.name });
+    await db.runAsync('DELETE FROM shopping WHERE id = ?', i.id);
+  }
+  return checked.length;
+}
+
+/** How often each food was used up (not tossed). Drives "you usually buy this". */
+export async function usedCounts(db: SQLiteDatabase): Promise<Map<string, number>> {
+  const rows = await db.getAllAsync<{ name: string; n: number }>(
+    "SELECT name, COUNT(*) as n FROM waste_log WHERE outcome = 'used' GROUP BY name",
+  );
+  return new Map(rows.map((r) => [r.name, r.n]));
+}
+
+/** Save leftovers from a cooked recipe as their own inventory item. */
+export async function addLeftovers(db: SQLiteDatabase, recipe: Recipe, servings: number): Promise<void> {
+  if (servings <= 0) return;
+  const title = recipe.title.replace(/\s*\((lighter|hearty)\)$/, '');
+  await addItem(db, {
+    name: `leftover ${title.toLowerCase()}`,
+    category: 'leftovers',
+    location: 'fridge',
+    count: servings,
+  });
 }

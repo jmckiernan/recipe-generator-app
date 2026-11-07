@@ -59,6 +59,22 @@ export interface Recipe {
   sourceUrl?: string;
   /** AI-provided explanation of why this suits the user. */
   why?: string;
+  /** Servings it makes. Defaults to 2. Used for leftovers and meal prep. */
+  servings?: number;
+  /** Cheaper homemade take on a restaurant dish. */
+  copycat?: { restaurant: string; dish: string; savingsPerServing: number };
+}
+
+/** Recipe "style": lighter (cut), classic, or hearty (bulk / full-flavor). */
+export type Style = 'lighter' | 'classic' | 'hearty';
+
+export interface ShoppingItem {
+  id: number;
+  name: string;
+  /** Why it's on the list, e.g. "for Chicken stir-fry" or "unlocks 3 recipes". */
+  reason: string;
+  checked: boolean;
+  addedAt: string;
 }
 
 export interface Profile {

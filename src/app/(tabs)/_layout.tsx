@@ -18,6 +18,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Tonight', tabBarIcon: icon('🍳') }} />
       <Tabs.Screen name="fridge" options={{ title: 'My Food', tabBarIcon: icon('🧊') }} />
+      <Tabs.Screen name="list" options={{ title: 'List', tabBarIcon: icon('🛒') }} />
       <Tabs.Screen name="profile" options={{ title: 'Taste', tabBarIcon: icon('⭐') }} />
     </Tabs>
   );

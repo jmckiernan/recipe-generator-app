@@ -35,7 +35,12 @@ export function findItemFor(
   today: Date = new Date(),
 ): InventoryItem | undefined {
   return inventory
-    .filter((i) => ingredientMatches(i.name, ingredientName) && daysUntil(i.expiresAt, today) >= 0)
+    .filter(
+      (i) =>
+        i.category !== 'leftovers' &&
+        ingredientMatches(i.name, ingredientName) &&
+        daysUntil(i.expiresAt, today) >= 0,
+    )
     .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))[0];
 }
 

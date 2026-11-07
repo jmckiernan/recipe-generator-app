@@ -77,7 +77,13 @@ export function suggest(
     if (have.length === 0) continue;
 
     const t = tasteScore(recipe, taste);
+    const copycatFav = !!recipe.copycat && isFavoriteRestaurant(recipe.copycat.restaurant, profile.favoriteRestaurants);
     const reasons: string[] = [];
+    if (copycatFav && recipe.copycat) {
+      reasons.push(
+        `Homemade take on your ${recipe.copycat.restaurant} order, saves about $${recipe.copycat.savingsPerServing}/serving`,
+      );
+    }
     if (usesExpiring.length) reasons.push(`Uses up ${listify(usesExpiring)} before it expires`);
     if (usesPartial) reasons.push(`Finishes your leftover ${usesPartial}`);
     if (missing.length === 0) reasons.push('You have everything');
@@ -89,7 +95,8 @@ export function suggest(
       20 +
       urgency +
       (usesPartial ? 4 : 0) +
-      t * 2 -
+      t * 2 +
+      (copycatFav ? 8 : 0) -
       missing.length * 6 +
       have.length * 1.5 -
       recipe.minutes / 15;
@@ -123,6 +130,16 @@ export function unlockSuggestions(
   return [...counts.entries()]
     .map(([ingredient, s]) => ({ ingredient, unlocks: [...s] }))
     .sort((a, b) => b.unlocks.length - a.unlocks.length);
+}
+
+/** Loose match so "chipotle", "Chipotle Mexican Grill", and "chick fil a" all work. */
+export function isFavoriteRestaurant(restaurant: string, favorites: string[]): boolean {
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z]/g, '');
+  const r = norm(restaurant);
+  return favorites.some((f) => {
+    const n = norm(f);
+    return n.length >= 3 && (r.includes(n) || n.includes(r));
+  });
 }
 
 function listify(xs: string[]): string {

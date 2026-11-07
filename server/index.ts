@@ -41,6 +41,8 @@ const RequestSchema = z.object({
   }),
   /** Free-text extra ask, e.g. "something creative" or "a cheap copycat of Chipotle". */
   request: z.string().max(500).optional(),
+  /** lighter = lower calorie (cut), hearty = more protein and richer (bulk). */
+  style: z.enum(['lighter', 'classic', 'hearty']).default('classic'),
   count: z.number().min(1).max(6).default(4),
 });
 type RecipeRequest = z.infer<typeof RequestSchema>;
@@ -60,6 +62,7 @@ const RecipeSchema = z.object({
   ),
   steps: z.array(z.string()),
   why: z.string().describe('one sentence on why this fits this person tonight'),
+  servings: z.number().describe('servings this makes'),
 });
 
 const ResponseSchema = z.object({
@@ -103,6 +106,11 @@ function userPrompt(r: RecipeRequest): string {
     `Cooked recently (avoid repeats): ${r.recentCooks.join(', ') || 'none'}`,
     `Favorite restaurants: ${r.favoriteRestaurants.join(', ') || 'none'}`,
     `\nFilters: maxMinutes=${f.maxMinutes ?? 'any'}, maxIngredients=${f.maxIngredients ?? 'any'}, canBuy=${f.canBuy}`,
+    r.style === 'lighter'
+      ? '\nStyle: lighter. Lower-calorie versions: lean proteins, more vegetables, less oil, cheese, and refined carbs, while still satisfying.'
+      : r.style === 'hearty'
+        ? '\nStyle: hearty. Filling, full-flavored versions with generous protein, suitable for bulking.'
+        : '',
     r.request ? `\nExtra request from the user: ${r.request}` : '',
   ].join('\n');
 }

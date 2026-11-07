@@ -45,6 +45,16 @@ const MIGRATIONS: string[] = [
     logged_at TEXT NOT NULL
   );
   `,
+  // v2: shopping list
+  `
+  CREATE TABLE IF NOT EXISTS shopping (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    checked INTEGER NOT NULL DEFAULT 0,
+    added_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export const DB_NAME = 'fridgechef.db';

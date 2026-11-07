@@ -28,6 +28,34 @@ and Claude for fresh recipe ideas.
   through the server in `server/`. It suggests creative combinations and cheaper versions of
   your favorite restaurants' dishes, then checks the results against your allergies again.
 
+## Phase 2 (new)
+
+- **Shopping list tab:**
+  - Add items by typing, from a recipe ("Add 2 missing to shopping list"), from Tonight's
+    "Worth picking up", or from meal prep.
+  - Suggestions explain themselves: foods you regularly use up and are out of, ingredients
+    that unlock the most recipes, and new foods you'd likely enjoy. Allergens are never suggested.
+  - Check items off at the store, then tap **Home from the store** to move them into My Food.
+- **Lighter / Classic / Hearty** on every recipe, with rough calories per serving:
+  - Lighter swaps ingredients (beef → turkey, cream → Greek yogurt, and so on), cuts cheese
+    back, and bulks the dish up with vegetables.
+  - Hearty doubles the protein and adds toppings.
+  - It never adds an allergen. It never sends you shopping for a swap: if you have the
+    original ingredient, it keeps it and suggests a smaller portion.
+- **Restaurant copycats:** cheaper homemade takes on dishes from Chipotle, Panera,
+  Chick-fil-A, Taco Bell, Panda Express, and Starbucks. When a restaurant is in your
+  favorites, they rank higher and show the savings per serving.
+- **Leftovers:** after "I made this," say how many servings are left. Tonight shows
+  "Eat your leftovers first" with a 4-day expiry and an "Ate one" button. Leftovers never
+  count as raw ingredients.
+- **Meal prep planner** ("Cooking for the week?" on Tonight):
+  - Choose 2–5 dishes, how much you're willing to buy, and whether to make double batches.
+  - It picks dishes with different proteins that use up expiring food, without counting the
+    same food twice.
+  - It shows total servings, a cooking order (longest dish first), and a combined shopping
+    list.
+- **AI ideas** take a Lighter/Classic/Hearty style too.
+
 ## Run it on your phone
 
 ```bash
@@ -79,7 +107,5 @@ you own. Deploy `server/` somewhere public (Fly.io, Render, or similar) first, a
 
 ## Roadmap
 
-- **Phase 2:** shopping list (fed by "worth picking up"), meal-prep / batch mode,
-  healthier vs. full-flavor (cut/bulk) versions, restaurant copycats, leftovers tracking.
 - **Phase 3:** receipt and barcode scanning, import recipes by URL from your favorite
   sites, shared household inventory, nutrition and macros.

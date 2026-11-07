@@ -2,7 +2,7 @@
 // server, never in the app. Configure with EXPO_PUBLIC_AI_URL (and optionally
 // EXPO_PUBLIC_AI_TOKEN) in a .env file.
 
-import type { Filters, InventoryItem, Profile, Rating, Recipe } from '../domain/types';
+import type { Filters, InventoryItem, Profile, Rating, Recipe, Style } from '../domain/types';
 import { describeAmount } from '../domain/inventory';
 import { daysUntil } from '../domain/shelfLife';
 import { normalizeName } from '../domain/normalize';
@@ -29,6 +29,7 @@ interface ServerRecipe {
   ingredients: { name: string; use: 'all' | 'half' | 'some'; optional: boolean }[];
   steps: string[];
   why: string;
+  servings: number;
 }
 
 export async function generateRecipes(args: {
@@ -39,6 +40,7 @@ export async function generateRecipes(args: {
   recentCooks: string[];
   filters: Filters;
   request?: string;
+  style?: Style;
 }): Promise<AiResult> {
   if (!AI_URL) throw new Error('AI server not configured. Set EXPO_PUBLIC_AI_URL.');
   const { inventory, profile, ratings, ratedTitles, filters } = args;
@@ -60,6 +62,7 @@ export async function generateRecipes(args: {
     recentCooks: args.recentCooks,
     filters,
     request: args.request,
+    style: args.style ?? 'classic',
     count: 4,
   };
 
@@ -89,6 +92,7 @@ export async function generateRecipes(args: {
     ingredients: r.ingredients.map((x) => ({ ...x, name: normalizeName(x.name) })),
     steps: r.steps,
     why: r.why,
+    servings: r.servings,
     source: 'ai',
   }));
 

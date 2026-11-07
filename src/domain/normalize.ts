@@ -25,17 +25,10 @@ const KEEP = new Set([
   'swiss',
   'molasses',
   'grits',
-  'oats',
-  'greens',
   'brussels',
-  'chickpeas',
-  'peas',
-  'lentils',
-  'beans',
-  'noodles',
-  'oats',
-  'tortillas',
-  'chips',
+  'greens',
+  'citrus',
+  'hibiscus',
 ]);
 
 export function singularize(word: string): string {

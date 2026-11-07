@@ -8,9 +8,10 @@ import { useAppData, pendingRecipes } from '../../state';
 import { expiringItems, suggest, unlockSuggestions } from '../../domain/matcher';
 import { adjacentSuggestions, buildTaste } from '../../domain/taste';
 import { shouldSuggestFreezing } from '../../domain/shelfLife';
-import type { Filters, Recipe, Suggestion } from '../../domain/types';
+import type { Filters, Recipe, Style, Suggestion } from '../../domain/types';
 import { aiConfigured, generateRecipes } from '../../ai/client';
-import { freezeItem } from '../../db/repo';
+import { addToShopping, applyChanges, freezeItem } from '../../db/repo';
+import { amountAfterUse, describeAmount } from '../../domain/inventory';
 import { Button, C, Card, Chip, ExpiryBadge, H2, Input, Muted, Row } from '../../components/ui';
 
 const TIME_OPTS: [string, number | undefined][] = [['15 min', 15], ['30 min', 30], ['45 min', 45], ['Any time', undefined]];
@@ -27,8 +28,17 @@ export default function Tonight() {
   const [aiError, setAiError] = useState<string>();
   const [aiRecipes, setAiRecipes] = useState<Recipe[]>([]);
   const [tryNext, setTryNext] = useState<{ ingredient: string; why: string }[]>([]);
+  const [style, setStyle] = useState<Style>('classic');
+  const [listNote, setListNote] = useState<string>();
 
-  const expiring = useMemo(() => expiringItems(items, profile.expiryWarnDays), [items, profile]);
+  const leftovers = useMemo(
+    () => items.filter((i) => i.category === 'leftovers').sort((a, b) => a.expiresAt.localeCompare(b.expiresAt)),
+    [items],
+  );
+  const expiring = useMemo(
+    () => expiringItems(items, profile.expiryWarnDays).filter((i) => i.category !== 'leftovers'),
+    [items, profile],
+  );
   const suggestions = useMemo(
     () => suggest([...aiRecipes, ...allRecipes], items, profile, ratings, filters),
     [aiRecipes, allRecipes, items, profile, ratings, filters],
@@ -55,6 +65,7 @@ export default function Tonight() {
         recentCooks: data.recentCooks,
         filters,
         request: ask.trim() || undefined,
+        style,
       });
       res.recipes.forEach((r) => pendingRecipes.put(r));
       setAiRecipes(res.recipes);
@@ -70,6 +81,29 @@ export default function Tonight() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+      {leftovers.length > 0 && (
+        <Card style={{ backgroundColor: C.primarySoft, borderColor: C.primarySoft }}>
+          <H2>Eat your leftovers first</H2>
+          {leftovers.map((i) => (
+            <Row key={i.id} style={{ justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 15, color: C.text, flexShrink: 1 }}>
+                {i.name.replace(/^leftover /, '')} · {describeAmount(i)} serving{i.count === 1 ? '' : 's'}
+              </Text>
+              <Row>
+                <Chip
+                  label="Ate one"
+                  onPress={async () => {
+                    await applyChanges(db, [amountAfterUse(i, 'all')]);
+                    await data.refresh();
+                  }}
+                />
+                <ExpiryBadge expiresAt={i.expiresAt} />
+              </Row>
+            </Row>
+          ))}
+        </Card>
+      )}
+
       {expiring.length > 0 && (
         <Card style={{ backgroundColor: C.warnSoft, borderColor: '#F5D88A' }}>
           <H2>Use these up soon</H2>
@@ -125,9 +159,28 @@ export default function Tonight() {
         </Row>
       </View>
 
+      <Link href="/meal-prep" asChild>
+        <Pressable>
+          <Card>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <View style={{ flexShrink: 1 }}>
+                <H2>Cooking for the week?</H2>
+                <Muted>Plan a meal-prep session from what you have.</Muted>
+              </View>
+              <Text style={{ color: C.primary, fontSize: 22 }}>›</Text>
+            </Row>
+          </Card>
+        </Pressable>
+      </Link>
+
       {aiConfigured() && (
         <Card>
           <H2>Ask for something specific</H2>
+          <Row>
+            {(['lighter', 'classic', 'hearty'] as Style[]).map((st) => (
+              <Chip key={st} label={st === 'lighter' ? 'Lighter' : st === 'hearty' ? 'Hearty' : 'Classic'} active={style === st} onPress={() => setStyle(st)} />
+            ))}
+          </Row>
           <Input
             value={ask}
             onChangeText={setAsk}
@@ -152,11 +205,22 @@ export default function Tonight() {
         <Card>
           <H2>Worth picking up</H2>
           {unlocks.map((u) => (
-            <Text key={u.ingredient} style={{ fontSize: 15, color: C.text }}>
-              <Text style={{ fontWeight: '600' }}>{u.ingredient}</Text> unlocks {u.unlocks.length}{' '}
-              {u.unlocks.length === 1 ? 'recipe' : 'recipes'}: {u.unlocks.slice(0, 3).join(', ')}
-            </Text>
+            <Row key={u.ingredient} style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+              <Text style={{ fontSize: 15, color: C.text, flex: 1 }}>
+                <Text style={{ fontWeight: '600' }}>{u.ingredient}</Text> unlocks {u.unlocks.length}{' '}
+                {u.unlocks.length === 1 ? 'recipe' : 'recipes'}: {u.unlocks.slice(0, 3).join(', ')}
+              </Text>
+              <Chip
+                label="+ List"
+                onPress={async () => {
+                  const n = await addToShopping(db, [{ name: u.ingredient, reason: `unlocks ${u.unlocks.length} recipes` }]);
+                  setListNote(n ? `Added ${u.ingredient} to your list` : `${u.ingredient} is already on your list`);
+                  await data.refresh();
+                }}
+              />
+            </Row>
           ))}
+          {listNote && <Text style={{ color: C.primary }}>{listNote}</Text>}
         </Card>
       )}
 
@@ -198,6 +262,7 @@ function SuggestionCard({ sg }: { sg: Suggestion }) {
           <Row>
             {r.kind === 'assembly' && <Tag label="No recipe needed" />}
             {r.source === 'ai' && <Tag label="New idea" />}
+            {r.copycat && <Tag label={`${r.copycat.restaurant}-style`} />}
           </Row>
           {r.why && <Text style={{ color: C.text, fontStyle: 'italic' }}>{r.why}</Text>}
           {sg.reasons.map((reason) => (

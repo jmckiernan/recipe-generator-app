@@ -46,6 +46,8 @@ const KEYWORDS: [RegExp, Category][] = [
 ];
 
 export function categorize(name: string): Category {
+  // Check before descriptors are stripped: coreName drops the word "leftover".
+  if (/\b(leftover|meal prep)\b/.test(name.toLowerCase())) return 'leftovers';
   const n = coreName(name);
   for (const [re, cat] of KEYWORDS) if (re.test(n)) return cat;
   return 'other';

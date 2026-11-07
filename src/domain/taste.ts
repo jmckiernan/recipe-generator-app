@@ -90,6 +90,14 @@ export function adjacentSuggestions(
   return out;
 }
 
+/** True if a single ingredient conflicts with any allergy (groups expanded). */
+export function isAllergen(ingredient: string, allergies: string[]): boolean {
+  return violatesAllergies(
+    { id: '', title: '', minutes: 0, kind: 'assembly', tags: [], steps: [], ingredients: [{ name: ingredient, use: 'some' }] },
+    allergies,
+  );
+}
+
 /** Hard allergy check. Never treat allergies as a preference. */
 export function violatesAllergies(recipe: Recipe, allergies: string[]): boolean {
   if (allergies.length === 0) return false;
