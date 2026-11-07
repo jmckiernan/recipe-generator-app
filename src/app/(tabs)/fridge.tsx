@@ -1,7 +1,8 @@
 // "My Food": quick add + inventory grouped by location, soonest-expiring first.
 
 import { useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAppData } from '../../state';
 import { parseQuickAdd } from '../../domain/quickAdd';
@@ -53,6 +54,11 @@ export default function Fridge() {
         </Row>
         <Button label="Add" onPress={add} disabled={!text.trim()} />
         <Muted>Expiry dates are estimated (~). Tap an item to set the printed date.</Muted>
+        <Row>
+          <View style={{ flex: 1 }}>
+            <Button label="Scan barcode or receipt" kind="secondary" onPress={() => router.push('/scan')} />
+          </View>
+        </Row>
       </Card>
 
       {LOCATIONS.map((l) => {
@@ -69,6 +75,19 @@ export default function Fridge() {
           </View>
         );
       })}
+      {items.length > 0 && (
+        <Button
+          label="Share what's in my kitchen"
+          kind="secondary"
+          onPress={() =>
+            Share.share({
+              message:
+                'In our kitchen:\n' +
+                items.map((i) => `• ${i.name} (${describeAmount(i)}, ${LOC_LABEL[i.location].toLowerCase()}, use by ${i.expiresAt})`).join('\n'),
+            })
+          }
+        />
+      )}
       {items.length === 0 && <Muted>Nothing here yet. Add what&apos;s in your fridge above.</Muted>}
     </ScrollView>
   );

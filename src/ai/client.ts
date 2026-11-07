@@ -100,3 +100,51 @@ export async function generateRecipes(args: {
   const safe = recipes.filter((r) => !violatesAllergies(r, profile.allergies));
   return { recipes: safe, tryNext: json.tryNext ?? [], blocked: recipes.length - safe.length };
 }
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  if (!AI_URL) throw new Error('AI server not configured. Set EXPO_PUBLIC_AI_URL.');
+  const res = await fetch(`${AI_URL.replace(/\/$/, '')}${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(AI_TOKEN ? { authorization: `Bearer ${AI_TOKEN}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json()) as T & { error?: string };
+  if (!res.ok) throw new Error(json.error ?? `AI server error ${res.status}`);
+  return json;
+}
+
+/** Photo of a grocery receipt → food items (Claude reads it on the server). */
+export async function scanReceipt(
+  imageBase64: string,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp',
+): Promise<{ store: string; items: { name: string; count: number }[] }> {
+  const r = await post<{ store: string; items: { name: string; count: number }[] }>('/receipt', { imageBase64, mediaType });
+  return {
+    store: r.store,
+    items: r.items
+      .map((i) => ({ name: normalizeName(i.name), count: Math.max(1, Math.round(i.count) || 1) }))
+      .filter((i) => i.name),
+  };
+}
+
+export interface FoundRecipe {
+  title: string;
+  url: string;
+  site: string;
+  why: string;
+}
+
+/** Web search limited to the user's favorite recipe sites. */
+export async function findOnSites(args: {
+  sites: string[];
+  ingredients: string[];
+  likes: string[];
+  allergies: string[];
+  request?: string;
+}): Promise<FoundRecipe[]> {
+  const r = await post<{ recipes: FoundRecipe[] }>('/find-recipes', args);
+  return r.recipes;
+}

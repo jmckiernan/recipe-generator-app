@@ -8,6 +8,7 @@ import * as repo from './db/repo';
 import { BUILTIN_RECIPES } from './data/recipes';
 import { rescheduleNudges } from './notifications';
 import { makeVariant, parseVariantId } from './domain/variants';
+import type { Macros } from './domain/nutrition';
 
 interface AppData {
   ready: boolean;
@@ -21,6 +22,7 @@ interface AppData {
   stats: { used: number; tossed: number };
   shopping: ShoppingItem[];
   usedCounts: Map<string, number>;
+  today: Macros & { meals: number };
   refresh: () => Promise<void>;
   findRecipe: (id: string) => Recipe | undefined;
 }
@@ -43,10 +45,11 @@ interface Loaded {
   stats: { used: number; tossed: number };
   shopping: ShoppingItem[];
   usedCounts: Map<string, number>;
+  today: Macros & { meals: number };
 }
 
 async function loadAll(db: SQLiteDatabase): Promise<Loaded> {
-  const [items, profile, ratings, savedRecipes, recentCooks, stats, shopping, usedCounts] = await Promise.all([
+  const [items, profile, ratings, savedRecipes, recentCooks, stats, shopping, usedCounts, today] = await Promise.all([
     repo.listItems(db),
     repo.getProfile(db),
     repo.listRatings(db),
@@ -55,8 +58,9 @@ async function loadAll(db: SQLiteDatabase): Promise<Loaded> {
     repo.wasteStats(db),
     repo.listShopping(db),
     repo.usedCounts(db),
+    repo.todayTotals(db),
   ]);
-  return { items, profile, ratings, savedRecipes, recentCooks, stats, shopping, usedCounts };
+  return { items, profile, ratings, savedRecipes, recentCooks, stats, shopping, usedCounts, today };
 }
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
@@ -90,6 +94,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       stats: { used: 0, tossed: 0 },
       shopping: [],
       usedCounts: new Map<string, number>(),
+      today: { kcal: 0, protein: 0, carbs: 0, fat: 0, meals: 0 },
     };
     const allRecipes = [...d.savedRecipes, ...BUILTIN_RECIPES];
     return {

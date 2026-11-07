@@ -2,13 +2,15 @@
 // steps, "I made this" (updates My Food + saves leftovers), and star rating.
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAppData } from '../../state';
 import { changesForCooking, findItemFor } from '../../domain/inventory';
 import { isStaple } from '../../domain/matcher';
 import { makeVariant, parseVariantId } from '../../domain/variants';
+import { defaultStyle } from '../../domain/nutrition';
+import { siteName } from '../../domain/recipeImport';
 import type { Style } from '../../domain/types';
 import * as repo from '../../db/repo';
 import { Button, C, Card, Chip, H1, H2, Muted, Row } from '../../components/ui';
@@ -25,7 +27,8 @@ export default function RecipeScreen() {
   const data = useAppData();
   const parsed = parseVariantId(id);
   const base = data.findRecipe(parsed.baseId);
-  const [style, setStyle] = useState<Style>(parsed.style);
+  // An explicit version in the link wins; otherwise your goal picks the default.
+  const [style, setStyle] = useState<Style>(parsed.style !== 'classic' ? parsed.style : defaultStyle(data.profile.goal));
   const existing = data.ratings.find((r) => r.recipeId === parsed.baseId)?.stars ?? 0;
   const [stars, setStars] = useState(existing);
   const [step, setStep] = useState<'idle' | 'confirm' | 'leftovers' | 'done'>('idle');
@@ -65,7 +68,7 @@ export default function RecipeScreen() {
     if (!base || !recipe) return;
     if (base.source === 'ai') await repo.saveRecipe(db, base);
     await repo.applyChanges(db, changes);
-    await repo.logCook(db, recipe);
+    await repo.logCook(db, recipe, shown?.macros);
     await data.refresh();
     setStep(recipe.kind === 'assembly' ? 'done' : 'leftovers');
   }
@@ -110,6 +113,11 @@ export default function RecipeScreen() {
         {recipe.kind === 'assembly' ? ' · no recipe needed' : ''}
       </Muted>
       {base.why && <Text style={{ fontStyle: 'italic', color: C.text }}>{base.why}</Text>}
+      {base.sourceUrl && (
+        <Pressable onPress={() => Linking.openURL(base.sourceUrl!)}>
+          <Text style={{ color: C.primary, fontWeight: '600' }}>Full recipe on {siteName(base.sourceUrl)} ↗</Text>
+        </Pressable>
+      )}
       {base.copycat && (
         <Card style={{ backgroundColor: C.primarySoft, borderColor: C.primarySoft }}>
           <Text style={{ color: C.text }}>
@@ -129,7 +137,10 @@ export default function RecipeScreen() {
             />
           ))}
         </Row>
-        <Muted>Rough calories per serving, to compare versions.</Muted>
+        <Text style={{ color: C.text, fontSize: 14 }}>
+          Per serving ≈ {shown.macros.kcal} kcal · {shown.macros.protein} g protein · {shown.macros.carbs} g carbs · {shown.macros.fat} g fat
+        </Text>
+        <Muted>Rough estimates, to compare versions.</Muted>
         {shown.changes.map((c) => (
           <Text key={c} style={{ color: C.text, fontSize: 14 }}>
             • {c}

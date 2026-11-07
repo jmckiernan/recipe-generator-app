@@ -4,19 +4,21 @@ import { useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAppData } from '../../state';
-import type { Profile } from '../../domain/types';
-import { saveProfile } from '../../db/repo';
+import type { Goal, Profile } from '../../domain/types';
+import { normalizeSite, SUGGESTED_SITES } from '../../domain/sites';
+import { getProfile, saveProfile } from '../../db/repo';
 import { ensurePermission } from '../../notifications';
 import { Button, C, Card, Chip, H2, Input, Muted, Row } from '../../components/ui';
 
-type ListKey = 'likes' | 'dislikes' | 'allergies' | 'staples' | 'favoriteRestaurants';
+type ListKey = 'likes' | 'dislikes' | 'allergies' | 'staples' | 'favoriteRestaurants' | 'favoriteSites';
 
 const SECTIONS: { key: ListKey; title: string; hint: string; placeholder: string }[] = [
   { key: 'likes', title: 'Foods & cuisines you like', hint: 'Used to rank suggestions and find similar foods.', placeholder: 'onion, mexican, spicy' },
   { key: 'dislikes', title: "Don't suggest", hint: 'Strongly avoided.', placeholder: 'mushroom, olives' },
   { key: 'allergies', title: 'Allergies & restrictions', hint: 'Hard rule. Never suggested. Groups like dairy, gluten, nuts are expanded.', placeholder: 'peanuts, shellfish, dairy' },
   { key: 'staples', title: 'Always on hand', hint: "Assumed you have these. They don't count toward 2- or 3-ingredient recipes.", placeholder: 'salt, olive oil' },
-  { key: 'favoriteRestaurants', title: 'Favorite restaurants', hint: 'AI ideas can include cheaper homemade versions.', placeholder: 'Chipotle, Panera' },
+  { key: 'favoriteRestaurants', title: 'Favorite restaurants', hint: 'Copycat recipes from these rank higher and show what you save.', placeholder: 'Chipotle, Panera' },
+  { key: 'favoriteSites', title: 'Favorite recipe sites', hint: 'Find recipes on these that use what you have.', placeholder: 'seriouseats.com' },
 ];
 
 export default function ProfileScreen() {
@@ -28,22 +30,31 @@ export default function ProfileScreen() {
     allergies: '',
     staples: '',
     favoriteRestaurants: '',
+    favoriteSites: '',
   });
+  const [siteError, setSiteError] = useState<string>();
 
-  async function persist(next: Profile) {
-    await saveProfile(db, next);
+  // Merge into the latest saved profile, so quick taps in a row don't overwrite each other.
+  async function persist(patch: Partial<Profile>) {
+    const current = await getProfile(db);
+    await saveProfile(db, { ...current, ...patch });
     await refresh();
   }
 
   function addTo(key: ListKey) {
-    const vals = drafts[key]
+    let vals = drafts[key]
       .split(',')
       .map((v) => v.trim().toLowerCase())
       .filter(Boolean);
+    if (key === 'favoriteSites') {
+      const ok = vals.map(normalizeSite).filter((v): v is string => v !== null);
+      setSiteError(ok.length < vals.length ? 'Use a site address like seriouseats.com' : undefined);
+      vals = ok;
+    }
     if (!vals.length) return;
     const merged = Array.from(new Set([...p[key], ...vals]));
     setDrafts({ ...drafts, [key]: '' });
-    persist({ ...p, [key]: merged });
+    persist({ [key]: merged });
   }
 
   return (
@@ -54,7 +65,7 @@ export default function ProfileScreen() {
           <Muted>{sec.hint}</Muted>
           <Row>
             {p[sec.key].map((v) => (
-              <Chip key={v} label={`${v}  ✕`} onPress={() => persist({ ...p, [sec.key]: p[sec.key].filter((x) => x !== v) })} />
+              <Chip key={v} label={`${v}  ✕`} onPress={() => persist({ [sec.key]: p[sec.key].filter((x) => x !== v) })} />
             ))}
           </Row>
           <Row>
@@ -67,15 +78,47 @@ export default function ProfileScreen() {
             />
             <Chip label="Add" onPress={() => addTo(sec.key)} />
           </Row>
+          {sec.key === 'favoriteSites' && (
+            <>
+              {siteError && <Text style={{ color: C.danger }}>{siteError}</Text>}
+              <Row>
+                {SUGGESTED_SITES.filter((s) => !p.favoriteSites.includes(s)).map((s) => (
+                  <Chip key={s} label={`+ ${s}`} onPress={() => persist({ favoriteSites: [...p.favoriteSites, s] })} />
+                ))}
+              </Row>
+            </>
+          )}
         </Card>
       ))}
+
+      <Card>
+        <H2>Your goal</H2>
+        <Muted>Sets the default version of every recipe: lighter for cutting, hearty for bulking.</Muted>
+        <Row>
+          {(
+            [
+              ['cut', 'Cut (lighter)'],
+              ['maintain', 'Maintain'],
+              ['bulk', 'Bulk (hearty)'],
+            ] as [Goal, string][]
+          ).map(([g, label]) => (
+            <Chip key={g} label={label} active={p.goal === g} onPress={() => persist({ goal: g })} />
+          ))}
+        </Row>
+        <Muted>Daily protein target:</Muted>
+        <Row>
+          {[undefined, 100, 130, 160, 200].map((t) => (
+            <Chip key={t ?? 'none'} label={t ? `${t} g` : 'None'} active={p.proteinTarget === t} onPress={() => persist({ proteinTarget: t })} />
+          ))}
+        </Row>
+      </Card>
 
       <Card>
         <H2>Expiring-soon reminder</H2>
         <Muted>Warn me when food is this many days from expiring:</Muted>
         <Row>
           {[1, 2, 3, 4, 5].map((d) => (
-            <Chip key={d} label={`${d} day${d > 1 ? 's' : ''}`} active={p.expiryWarnDays === d} onPress={() => persist({ ...p, expiryWarnDays: d })} />
+            <Chip key={d} label={`${d} day${d > 1 ? 's' : ''}`} active={p.expiryWarnDays === d} onPress={() => persist({ expiryWarnDays: d })} />
           ))}
         </Row>
         <Muted>Daily reminder time:</Muted>
@@ -85,7 +128,7 @@ export default function ProfileScreen() {
               key={h}
               label={`${h - 12} pm`}
               active={p.notifyHour === h && p.notifyMinute === 0}
-              onPress={() => persist({ ...p, notifyHour: h, notifyMinute: 0 })}
+              onPress={() => persist({ notifyHour: h, notifyMinute: 0 })}
             />
           ))}
         </Row>

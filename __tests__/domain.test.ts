@@ -36,6 +36,8 @@ const profile: Profile = {
   allergies: [],
   staples: DEFAULT_STAPLES,
   favoriteRestaurants: [],
+  favoriteSites: [],
+  goal: 'maintain',
   expiryWarnDays: 2,
   notifyHour: 16,
   notifyMinute: 0,

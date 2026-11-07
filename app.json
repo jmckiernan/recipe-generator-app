@@ -27,7 +27,21 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FridgeChef uses the camera to scan grocery barcodes and receipts.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FridgeChef reads receipt photos you choose to add groceries.",
+          "cameraPermission": "FridgeChef uses the camera to photograph grocery receipts."
+        }
+      ]
     ],
     "scheme": "fridgechef",
     "experiments": {

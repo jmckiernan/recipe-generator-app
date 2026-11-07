@@ -15,6 +15,7 @@ import type { InventoryChange } from '../domain/inventory';
 import { categorize, defaultLocation, estimateExpiry, toISODate } from '../domain/shelfLife';
 import { DEFAULT_STAPLES } from '../data/recipes';
 import { coreName, ingredientMatches } from '../domain/normalize';
+import type { Macros } from '../domain/nutrition';
 
 interface ItemRow {
   id: number;
@@ -150,6 +151,8 @@ export const DEFAULT_PROFILE: Profile = {
   allergies: [],
   staples: DEFAULT_STAPLES,
   favoriteRestaurants: [],
+  favoriteSites: [],
+  goal: 'maintain',
   expiryWarnDays: 2,
   notifyHour: 16,
   notifyMinute: 0,
@@ -218,13 +221,30 @@ export async function listRatings(db: SQLiteDatabase): Promise<Rating[]> {
   }));
 }
 
-export async function logCook(db: SQLiteDatabase, recipe: Recipe): Promise<void> {
+/** Log a cooked meal with the macros of the one serving you ate. */
+export async function logCook(db: SQLiteDatabase, recipe: Recipe, macros?: Macros): Promise<void> {
   await db.runAsync(
-    'INSERT INTO cook_log (recipe_id, title, cooked_at) VALUES (?, ?, ?)',
+    'INSERT INTO cook_log (recipe_id, title, cooked_at, kcal, protein, carbs, fat) VALUES (?, ?, ?, ?, ?, ?, ?)',
     recipe.id,
     recipe.title,
     new Date().toISOString(),
+    macros?.kcal ?? 0,
+    macros?.protein ?? 0,
+    macros?.carbs ?? 0,
+    macros?.fat ?? 0,
   );
+}
+
+/** Totals for meals logged today (local time). */
+export async function todayTotals(db: SQLiteDatabase): Promise<Macros & { meals: number }> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const row = await db.getFirstAsync<{ kcal: number; protein: number; carbs: number; fat: number; meals: number }>(
+    `SELECT COALESCE(SUM(kcal),0) kcal, COALESCE(SUM(protein),0) protein, COALESCE(SUM(carbs),0) carbs,
+            COALESCE(SUM(fat),0) fat, COUNT(*) meals FROM cook_log WHERE cooked_at >= ?`,
+    start.toISOString(),
+  );
+  return row ?? { kcal: 0, protein: 0, carbs: 0, fat: 0, meals: 0 };
 }
 
 export async function recentCooks(db: SQLiteDatabase, limit = 10): Promise<string[]> {

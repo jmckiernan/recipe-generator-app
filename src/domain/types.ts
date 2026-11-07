@@ -65,6 +65,9 @@ export interface Recipe {
   copycat?: { restaurant: string; dish: string; savingsPerServing: number };
 }
 
+/** Your eating goal. Sets the default recipe version. */
+export type Goal = 'cut' | 'maintain' | 'bulk';
+
 /** Recipe "style": lighter (cut), classic, or hearty (bulk / full-flavor). */
 export type Style = 'lighter' | 'classic' | 'hearty';
 
@@ -83,6 +86,11 @@ export interface Profile {
   allergies: string[]; // hard filter
   staples: string[]; // always-on-hand items, not counted
   favoriteRestaurants: string[];
+  /** Recipe sites you like, e.g. "seriouseats.com". */
+  favoriteSites: string[];
+  goal: Goal;
+  /** Optional daily protein target in grams. */
+  proteinTarget?: number;
   expiryWarnDays: number; // the user's "X"
   notifyHour: number;
   notifyMinute: number;

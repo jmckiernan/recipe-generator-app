@@ -4,43 +4,11 @@
 import type { Recipe, RecipeIngredient, Style, UseAmount } from './types';
 import { coreName, ingredientMatches } from './normalize';
 import { violatesAllergies } from './taste';
+import { addMacros, estimateMacros, ingredientMacros, type Macros } from './nutrition';
 
-/**
- * Very rough calories one serving gets from an ingredient when the recipe uses
- * "all" of a typical unit. half = ×0.5, some = ×0.35. Good enough to compare
- * versions of the same dish, not for tracking macros.
- */
-const KCAL: Record<string, number> = {
-  butter: 100, 'olive oil': 120, 'vegetable oil': 120, cream: 200, 'greek yogurt': 60, yogurt: 80,
-  'sour cream': 120, mayo: 180, cheese: 220, cheddar: 220, mozzarella: 170, parmesan: 110,
-  'cream cheese': 200, egg: 140, 'egg white': 35, milk: 60,
-  chicken: 280, 'chicken thigh': 320, 'chicken breast': 250, turkey: 160, 'ground turkey': 250,
-  'ground beef': 380, beef: 380, steak: 400, sausage: 400, 'chicken sausage': 220, bacon: 220,
-  'turkey bacon': 100, shrimp: 120, salmon: 360, tofu: 180, 'black bean': 200,
-  pasta: 400, 'whole-wheat pasta': 360, rice: 340, 'brown rice': 320, 'cauliflower rice': 40,
-  quinoa: 300, bread: 160, 'whole-grain bread': 140, tortilla: 210, 'low-carb tortilla': 90,
-  'lettuce wrap': 10, potato: 220, 'sweet potato': 180, avocado: 160, granola: 200,
-  'peanut butter': 190, honey: 60, banana: 105, berry: 40, tomato: 25, onion: 30, 'bell pepper': 25,
-  spinach: 10, lettuce: 10, broccoli: 35, cucumber: 10, mushroom: 15, carrot: 25, salsa: 15,
-  dressing: 120, 'orange juice': 60, flour: 110, sugar: 50, 'soy sauce': 10, 'bbq sauce': 70,
-};
-
-const USE_FACTOR: Record<UseAmount, number> = { all: 1, half: 0.5, some: 0.35 };
-
-function kcalOf(name: string): number {
-  const n = coreName(name);
-  if (KCAL[n] !== undefined) return KCAL[n];
-  const key = Object.keys(KCAL).find((k) => ingredientMatches(n, k));
-  return key ? KCAL[key] : 40;
-}
-
-/** Rough calories per serving. Optional ingredients count at half weight. */
+/** Rough calories per serving (see nutrition.ts). */
 export function estimateKcal(recipe: Recipe): number {
-  const total = recipe.ingredients.reduce(
-    (sum, i) => sum + kcalOf(i.name) * USE_FACTOR[i.use] * (i.optional ? 0.5 : 1),
-    0,
-  );
-  return Math.round(total / 10) * 10;
+  return estimateMacros(recipe).kcal;
 }
 
 interface Swap {
@@ -74,6 +42,7 @@ export interface Variant {
   recipe: Recipe;
   changes: string[];
   kcal: number;
+  macros: Macros;
 }
 
 /**
@@ -87,7 +56,10 @@ export function makeVariant(
   allergies: string[] = [],
   have?: (name: string) => boolean,
 ): Variant {
-  if (style === 'classic') return { recipe, changes: [], kcal: estimateKcal(recipe) };
+  if (style === 'classic') {
+    const macros = estimateMacros(recipe);
+    return { recipe, changes: [], kcal: macros.kcal, macros };
+  }
 
   let ingredients: RecipeIngredient[] = recipe.ingredients.map((i) => ({ ...i }));
   const changes: string[] = [];
@@ -128,7 +100,8 @@ export function makeVariant(
         changes.push('Bulk it up with a big handful of spinach (more food, few calories)');
       }
     }
-    changes.push('Cook with a light spray of oil instead of a pour');
+    const fats = ingredients.filter((i) => ['olive oil', 'vegetable oil', 'butter', 'oil'].some((f) => ingredientMatches(i.name, f)));
+    if (fats.length) changes.push('Cook with a light spray of oil instead of a pour');
   }
 
   if (style === 'hearty') {
@@ -171,13 +144,20 @@ export function makeVariant(
   };
 
   // Hearty doubles the protein, which a plain ingredient list can't express, so add it to the estimate.
-  let kcal = estimateKcal(out);
+  let macros = estimateMacros(out);
+  if (style === 'lighter') {
+    // "A spray instead of a pour" ≈ half the cooking fat.
+    for (const f of ingredients.filter((i) => ['olive oil', 'vegetable oil', 'butter', 'oil'].some((x) => ingredientMatches(i.name, x)))) {
+      const m = ingredientMacros(f.name, f.use);
+      macros = addMacros(macros, { kcal: -Math.round(m.kcal / 20) * 10, protein: 0, carbs: 0, fat: -Math.round(m.fat / 2) });
+    }
+  }
   if (style === 'hearty') {
     const protein = ingredients.find((i) => PROTEINS.some((p) => ingredientMatches(i.name, p)));
-    if (protein) kcal += Math.round((kcalOf(protein.name) * USE_FACTOR[protein.use]) / 10) * 10;
-    kcal += 60; // the extra oil or butter
+    if (protein) macros = addMacros(macros, ingredientMacros(protein.name, protein.use));
+    macros = addMacros(macros, { kcal: 60, protein: 0, carbs: 0, fat: 7 }); // the extra oil or butter
   }
-  return { recipe: out, changes, kcal };
+  return { recipe: out, changes, kcal: macros.kcal, macros };
 }
 
 /** Parse "<baseId>~lighter" back into its parts. */

@@ -111,6 +111,17 @@ const COMPOUNDS = new Set([
   'chicken stock',
   'beef broth',
   'pepper flake', // "red" is stripped as a descriptor
+  // Lighter swaps are different foods from the generic word, so "rice" never counts as cauliflower rice.
+  'cauliflower rice',
+  'whole-wheat pasta',
+  'whole-grain bread',
+  'low-carb tortilla',
+  'turkey bacon',
+  'chicken sausage',
+  'ground turkey',
+  'rice vinegar',
+  'tomato paste',
+  'tomato sauce',
 ]);
 
 /**
@@ -132,5 +143,7 @@ export function ingredientMatches(inventoryName: string, recipeName: string): bo
   if (bw.length === 1 && aw.includes(bw[0])) return true;
   // "green bell pepper" vs "bell pepper"; "aged cheddar cheese" vs "cheddar cheese".
   if (bw.length > 1 && a.endsWith(' ' + b)) return true;
+  // Generic covers specific: fridge "rice" works for "long-grain rice", "cheese" for "goat cheese".
+  if (aw.length === 1 && bw.length > 1 && bw[bw.length - 1] === aw[0]) return true;
   return false;
 }

@@ -56,6 +56,35 @@ and Claude for fresh recipe ideas.
     list.
 - **AI ideas** take a Lighter/Classic/Hearty style too.
 
+## Phase 3 (new)
+
+- **Scan groceries** (My Food → "Scan barcode or receipt"):
+  - **Barcode:** point the camera at the package (or type the number). The product is
+    looked up in [Open Food Facts](https://world.openfoodfacts.org), a free food database
+    that needs no API key. You get the product name, a better expiry estimate based on its
+    category, and nutrition per 100 g.
+  - **Receipt:** take a photo and Claude reads it on your server. It expands
+    abbreviations ("BNLS CHKN BRST" → chicken breast) and skips non-food lines. You
+    untick anything you don't want, then add the rest in one tap.
+- **Recipes from your favorite sites** ("Find recipes on your sites" on Tonight):
+  - Import any recipe by pasting its link. Most recipe sites publish structured recipe
+    data. The app saves a summary (ingredients matched against your fridge, steps,
+    time, servings) and always links back to the original.
+  - Add favorite sites on the Taste tab. **Search my sites for me** uses Claude web
+    search, limited to only those sites, to find recipes that use what's expiring.
+    Results are checked so every link really points to one of your sites. There are also
+    plain search links for each site, which work without AI.
+- **Nutrition:** rough calories, protein, carbs, and fat per serving for every recipe and
+  version.
+  - A **goal** (cut / maintain / bulk) on the Taste tab sets the default recipe version.
+  - An optional daily **protein target**, plus a "Today: ≈1,450 kcal · 98 g protein of
+    130 g" line on Tonight based on the meals you log with "I made this".
+- **Share** your shopping list, or what's in your kitchen, through the phone's share menu
+  (text, email, and so on).
+
+Real-time **shared household inventory** isn't built yet. It needs accounts and a cloud
+database. See the roadmap.
+
 ## Run it on your phone
 
 ```bash
@@ -73,6 +102,10 @@ cd server && npm install
 ANTHROPIC_API_KEY=sk-ant-... npm start      # listens on :8787
 ```
 
+This powers recipe ideas, receipt scanning, and searching your favorite sites. Site search
+uses Claude's web search tool, which may need to be enabled for your organization in the
+Claude Console.
+
 Then copy `.env.example` to `.env.local` and set `EXPO_PUBLIC_AI_URL` to the server's
 address (your computer's LAN IP while developing). Restart `npm start`. The API key stays on
 the server and is never bundled into the app. Set `APP_TOKEN` on the server and
@@ -87,7 +120,7 @@ src/data/recipes.ts  Built-in recipe library (works offline)
 src/db/              SQLite schema, migrations, and data access
 src/ai/client.ts     Calls the AI server
 src/notifications.ts Nightly "use it up" reminders
-server/              Tiny Node server that calls the Claude API
+server/              Tiny Node server that calls the Claude API (/recipes, /receipt, /find-recipes)
 ```
 
 ## Checks
@@ -107,5 +140,8 @@ you own. Deploy `server/` somewhere public (Fly.io, Render, or similar) first, a
 
 ## Roadmap
 
-- **Phase 3:** receipt and barcode scanning, import recipes by URL from your favorite
-  sites, shared household inventory, nutrition and macros.
+- **Shared household:** sign-in plus a cloud database (e.g. Supabase or Firebase), so
+  everyone in the house sees and updates the same fridge and list in real time.
+- Daily nutrition that also counts leftovers and snacks, and uses packaged-food nutrition
+  from barcodes.
+- An App Store build: icon, splash screen, onboarding, and a privacy policy.

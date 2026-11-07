@@ -55,6 +55,13 @@ const MIGRATIONS: string[] = [
     added_at TEXT NOT NULL
   );
   `,
+  // v3: nutrition per cooked serving
+  `
+  ALTER TABLE cook_log ADD COLUMN kcal INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE cook_log ADD COLUMN protein INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE cook_log ADD COLUMN carbs INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE cook_log ADD COLUMN fat INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export const DB_NAME = 'fridgechef.db';

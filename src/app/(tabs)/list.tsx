@@ -2,7 +2,7 @@
 // check items off at the store, then move them into My Food in one tap.
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAppData } from '../../state';
 import { listSuggestions } from '../../domain/shopping';
@@ -63,6 +63,11 @@ export default function ShoppingList() {
           {unchecked.map((i) => (
             <ListRow key={i.id} id={i.id} name={i.name} reason={i.reason} checked={false} />
           ))}
+          <Button
+            label="Share list"
+            kind="secondary"
+            onPress={() => Share.share({ message: 'Shopping list:\n' + unchecked.map((i) => `☐ ${i.name}`).join('\n') })}
+          />
         </Card>
       )}
 

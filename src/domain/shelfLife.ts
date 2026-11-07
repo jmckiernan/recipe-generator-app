@@ -41,7 +41,7 @@ const KEYWORDS: [RegExp, Category][] = [
   [/\b(apple|banana|orange|lemon|lime|berry|grape|pear|peach|mango|avocado|melon)\b/, 'fruit'],
   [/\b(tomato|pepper|zucchini|cucumber|broccoli|cauliflower|mushroom|corn|bean sprout|asparagus|eggplant|green bean)\b/, 'produce'],
   [/\b(bread|bun|roll|bagel|tortilla|pita|naan|english muffin)\b/, 'bread'],
-  [/\b(rice|pasta|noodle|oat|quinoa|flour|lentil|bean|chickpea|couscous)\b/, 'grain'],
+  [/\b(rice|pasta|orzo|noodle|oat|quinoa|flour|lentil|bean|chickpea|couscous)\b/, 'grain'],
   [/\b(ketchup|mustard|mayo|mayonnaise|sauce|salsa|dressing|jam|soy|vinegar|pesto|hummus)\b/, 'condiment'],
 ];
 

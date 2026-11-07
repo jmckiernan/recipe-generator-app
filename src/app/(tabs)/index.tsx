@@ -10,7 +10,9 @@ import { adjacentSuggestions, buildTaste } from '../../domain/taste';
 import { shouldSuggestFreezing } from '../../domain/shelfLife';
 import type { Filters, Recipe, Style, Suggestion } from '../../domain/types';
 import { aiConfigured, generateRecipes } from '../../ai/client';
+import { siteName } from '../../domain/recipeImport';
 import { addToShopping, applyChanges, freezeItem } from '../../db/repo';
+import { defaultStyle } from '../../domain/nutrition';
 import { amountAfterUse, describeAmount } from '../../domain/inventory';
 import { Button, C, Card, Chip, ExpiryBadge, H2, Input, Muted, Row } from '../../components/ui';
 
@@ -28,7 +30,7 @@ export default function Tonight() {
   const [aiError, setAiError] = useState<string>();
   const [aiRecipes, setAiRecipes] = useState<Recipe[]>([]);
   const [tryNext, setTryNext] = useState<{ ingredient: string; why: string }[]>([]);
-  const [style, setStyle] = useState<Style>('classic');
+  const [style, setStyle] = useState<Style>(defaultStyle(profile.goal));
   const [listNote, setListNote] = useState<string>();
 
   const leftovers = useMemo(
@@ -159,6 +161,13 @@ export default function Tonight() {
         </Row>
       </View>
 
+      {data.today.meals > 0 && (
+        <Muted>
+          Today: ≈{data.today.kcal} kcal · {data.today.protein} g protein
+          {profile.proteinTarget ? ` of ${profile.proteinTarget} g` : ''} from {data.today.meals} meal{data.today.meals === 1 ? '' : 's'} logged
+        </Muted>
+      )}
+
       <Link href="/meal-prep" asChild>
         <Pressable>
           <Card>
@@ -166,6 +175,24 @@ export default function Tonight() {
               <View style={{ flexShrink: 1 }}>
                 <H2>Cooking for the week?</H2>
                 <Muted>Plan a meal-prep session from what you have.</Muted>
+              </View>
+              <Text style={{ color: C.primary, fontSize: 22 }}>›</Text>
+            </Row>
+          </Card>
+        </Pressable>
+      </Link>
+
+      <Link href="/import" asChild>
+        <Pressable>
+          <Card>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <View style={{ flexShrink: 1 }}>
+                <H2>Find recipes on your sites</H2>
+                <Muted>
+                  {profile.favoriteSites.length
+                    ? `Search ${profile.favoriteSites.slice(0, 2).join(', ')}${profile.favoriteSites.length > 2 ? '…' : ''} or import a link`
+                    : 'Import any recipe by link, or add favorite sites'}
+                </Muted>
               </View>
               <Text style={{ color: C.primary, fontSize: 22 }}>›</Text>
             </Row>
@@ -263,6 +290,7 @@ function SuggestionCard({ sg }: { sg: Suggestion }) {
             {r.kind === 'assembly' && <Tag label="No recipe needed" />}
             {r.source === 'ai' && <Tag label="New idea" />}
             {r.copycat && <Tag label={`${r.copycat.restaurant}-style`} />}
+            {r.sourceUrl && <Tag label={siteName(r.sourceUrl)} />}
           </Row>
           {r.why && <Text style={{ color: C.text, fontStyle: 'italic' }}>{r.why}</Text>}
           {sg.reasons.map((reason) => (
