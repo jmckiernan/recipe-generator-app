@@ -28,7 +28,7 @@ and Claude for fresh recipe ideas.
   through the server in `server/`. It suggests creative combinations and cheaper versions of
   your favorite restaurants' dishes, then checks the results against your allergies again.
 
-## Phase 2 (new)
+## Phase 2
 
 - **Shopping list tab:**
   - Add items by typing, from a recipe ("Add 2 missing to shopping list"), from Tonight's
@@ -56,7 +56,7 @@ and Claude for fresh recipe ideas.
     list.
 - **AI ideas** take a Lighter/Classic/Hearty style too.
 
-## Phase 3 (new)
+## Phase 3
 
 - **Scan groceries** (My Food → "Scan barcode or receipt"):
   - **Barcode:** point the camera at the package (or type the number). The product is
@@ -82,8 +82,40 @@ and Claude for fresh recipe ideas.
 - **Share** your shopping list, or what's in your kitchen, through the phone's share menu
   (text, email, and so on).
 
-Real-time **shared household inventory** isn't built yet. It needs accounts and a cloud
-database. See the roadmap.
+## Shared household (new)
+
+Everyone in a household shares **My Food, the shopping list, and saved recipes**. Changes
+show up on the other phones within seconds. Likes, ratings, and nutrition stay personal.
+
+- **Sign in** with a 6-digit code emailed to you (Taste → Household). No password needed.
+- **Create** a household, or **join** one with a 6-character invite code like `K7Q-2MX`.
+  Food already on your phone is added to the household.
+- **Works offline:** changes are saved on the phone and sync when you're back online. If two
+  people edit the same item, the change that reaches the server last wins.
+- **Cooking for** (on Tonight): **Everyone** avoids every member's allergies, **Just me**
+  avoids only yours, or pick specific people. The "Avoiding: …" line shows what's in effect.
+- Each household's data is private, enforced by Supabase row-level security
+  (`supabase/migrations/0001_household.sql`).
+
+### Set up Supabase (one time)
+
+1. In your Supabase dashboard, open **SQL Editor**, paste the whole of
+   `supabase/migrations/0001_household.sql`, and click **Run**. It's safe to run again.
+2. Go to **Authentication → Emails → Templates**. In both **Magic Link** and
+   **Confirm signup**, add the code to the message, for example
+   `Your FridgeChef code is {{ .Token }}`. Without this, Supabase emails a link instead
+   of a code.
+3. Go to **Project Settings → API**. Copy the project URL and the `anon` (publishable)
+   key into `.env.local`:
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+   ```
+   The anon key is designed to be in apps. Never put the `service_role` key in the app.
+4. Restart `npm start`.
+
+Supabase's built-in email sender only allows a few emails per hour. That's fine for
+testing; set up your own email provider (Authentication → SMTP) before launch.
 
 ## Run it on your phone
 
@@ -120,6 +152,8 @@ src/data/recipes.ts  Built-in recipe library (works offline)
 src/db/              SQLite schema, migrations, and data access
 src/ai/client.ts     Calls the AI server
 src/notifications.ts Nightly "use it up" reminders
+src/sync/            Household sync: Supabase client, sign-in, sync engine, realtime
+supabase/            Database tables + security rules (migrations/) and their tests (tests/)
 server/              Tiny Node server that calls the Claude API (/recipes, /receipt, /find-recipes)
 ```
 
@@ -131,6 +165,13 @@ npm run typecheck
 npm run lint
 ```
 
+The security rules have their own test. It runs against a local Postgres, with a stand-in
+for Supabase's auth:
+
+```bash
+cd supabase/tests && createdb fc_test && psql -v ON_ERROR_STOP=1 -d fc_test -f auth_stub.sql -f ../migrations/0001_household.sql -f rls_test.sql
+```
+
 ## Shipping to the App Store
 
 When you're ready: `npx eas-cli@latest build -p ios`, then `npx eas-cli@latest submit -p ios`.
@@ -140,8 +181,8 @@ you own. Deploy `server/` somewhere public (Fly.io, Render, or similar) first, a
 
 ## Roadmap
 
-- **Shared household:** sign-in plus a cloud database (e.g. Supabase or Firebase), so
-  everyone in the house sees and updates the same fridge and list in real time.
+- **Sign in with Apple and Google**, next to the email code. This needs an Apple and
+  Google developer setup, plus a development build instead of Expo Go.
 - Daily nutrition that also counts leftovers and snacks, and uses packaged-food nutrition
   from barcodes.
 - An App Store build: icon, splash screen, onboarding, and a privacy policy.

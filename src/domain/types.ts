@@ -91,6 +91,10 @@ export interface Profile {
   goal: Goal;
   /** Optional daily protein target in grams. */
   proteinTarget?: number;
+  /** Your name as other household members see it. */
+  displayName?: string;
+  /** Whose allergies suggestions avoid: everyone in the household (default), just me, or chosen members' user ids. */
+  cookingFor?: 'everyone' | 'me' | string[];
   expiryWarnDays: number; // the user's "X"
   notifyHour: number;
   notifyMinute: number;

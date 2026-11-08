@@ -11,7 +11,7 @@ import { Button, C, Card, Chip, H1, H2, Muted, Row } from '../components/ui';
 
 export default function MealPrep() {
   const db = useSQLiteContext();
-  const { items, allRecipes, profile, ratings, refresh } = useAppData();
+  const { items, allRecipes, planningProfile: profile, ratings, refresh } = useAppData();
   const [dishes, setDishes] = useState(3);
   const [canBuy, setCanBuy] = useState(1);
   const [doubleBatch, setDoubleBatch] = useState(false);

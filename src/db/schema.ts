@@ -2,7 +2,12 @@
 
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const MIGRATIONS: string[] = [
+/** SQL expression for a random version-4 UUID (SQLite has no built-in). */
+export const UUID_SQL =
+  "(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || " +
+  "substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))))";
+
+export const MIGRATIONS: string[] = [
   // v1
   `
   CREATE TABLE IF NOT EXISTS items (
@@ -61,6 +66,27 @@ const MIGRATIONS: string[] = [
   ALTER TABLE cook_log ADD COLUMN protein INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE cook_log ADD COLUMN carbs INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE cook_log ADD COLUMN fat INTEGER NOT NULL DEFAULT 0;
+  `,
+  // v4: household sync. Shared rows get a UUID, a change time, a "needs upload"
+  // flag, and soft deletes (so a delete can be sent to the other phones).
+  `
+  ALTER TABLE items ADD COLUMN uid TEXT;
+  ALTER TABLE items ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+  ALTER TABLE items ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE items ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
+  UPDATE items SET uid = ${UUID_SQL} WHERE uid IS NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS items_uid ON items (uid);
+
+  ALTER TABLE shopping ADD COLUMN uid TEXT;
+  ALTER TABLE shopping ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+  ALTER TABLE shopping ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE shopping ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
+  UPDATE shopping SET uid = ${UUID_SQL} WHERE uid IS NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS shopping_uid ON shopping (uid);
+
+  ALTER TABLE recipes ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+  ALTER TABLE recipes ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE recipes ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
   `,
 ];
 

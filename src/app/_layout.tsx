@@ -33,6 +33,7 @@ export default function RootLayout() {
             <Stack.Screen name="meal-prep" options={{ title: 'Meal prep' }} />
             <Stack.Screen name="scan" options={{ title: 'Scan' }} />
             <Stack.Screen name="import" options={{ title: 'Web recipes' }} />
+            <Stack.Screen name="household" options={{ title: 'Household' }} />
           </Stack>
         </AppDataProvider>
       </SQLiteProvider>

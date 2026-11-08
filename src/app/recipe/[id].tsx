@@ -36,14 +36,14 @@ export default function RecipeScreen() {
 
   const variants = useMemo(() => {
     if (!base) return null;
-    const a = data.profile.allergies;
+    const a = data.planningProfile.allergies;
     const have = (n: string) => isStaple(n, data.profile.staples) || !!findItemFor(data.items, n);
     return {
       lighter: makeVariant(base, 'lighter', a, have),
       classic: makeVariant(base, 'classic', a, have),
       hearty: makeVariant(base, 'hearty', a, have),
     };
-  }, [base, data.profile.allergies, data.profile.staples, data.items]);
+  }, [base, data.planningProfile.allergies, data.profile.staples, data.items]);
 
   const shown = variants?.[style];
   const recipe = shown?.recipe;

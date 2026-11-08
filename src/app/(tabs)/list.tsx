@@ -12,7 +12,7 @@ import { Button, C, Card, Chip, H2, Input, Muted, Row } from '../../components/u
 
 export default function ShoppingList() {
   const db = useSQLiteContext();
-  const { shopping, items, allRecipes, profile, ratings, usedCounts, refresh } = useAppData();
+  const { shopping, items, allRecipes, planningProfile: profile, ratings, usedCounts, refresh } = useAppData();
   const [text, setText] = useState('');
   const [toast, setToast] = useState<string>();
 

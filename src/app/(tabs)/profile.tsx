@@ -1,7 +1,8 @@
 // "Taste": likes, dislikes, allergies, staples, favorite restaurants, reminder settings.
 
 import { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { Pressable, ScrollView, Text } from 'react-native';
+import { Link } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useAppData } from '../../state';
 import type { Goal, Profile } from '../../domain/types';
@@ -23,7 +24,7 @@ const SECTIONS: { key: ListKey; title: string; hint: string; placeholder: string
 
 export default function ProfileScreen() {
   const db = useSQLiteContext();
-  const { profile: p, refresh, ratings } = useAppData();
+  const { profile: p, refresh, ratings, household: hh } = useAppData();
   const [drafts, setDrafts] = useState<Record<ListKey, string>>({
     likes: '',
     dislikes: '',
@@ -59,6 +60,22 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+      <Link href="/household" asChild>
+        <Pressable>
+          <Card>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <H2>Household</H2>
+              <Text style={{ color: C.primary, fontSize: 22 }}>›</Text>
+            </Row>
+            <Muted>
+              {hh.household
+                ? `${hh.household.name} · ${hh.members.length} member${hh.members.length === 1 ? '' : 's'}`
+                : 'Share your fridge and shopping list with the people you live with'}
+            </Muted>
+          </Card>
+        </Pressable>
+      </Link>
+
       {SECTIONS.map((sec) => (
         <Card key={sec.key}>
           <H2>{sec.title}</H2>

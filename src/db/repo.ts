@@ -16,6 +16,10 @@ import { categorize, defaultLocation, estimateExpiry, toISODate } from '../domai
 import { DEFAULT_STAPLES } from '../data/recipes';
 import { coreName, ingredientMatches } from '../domain/normalize';
 import type { Macros } from '../domain/nutrition';
+import { UUID_SQL } from './schema';
+
+/** Local change time. Shared rows changed locally are flagged dirty until uploaded. */
+const now = () => new Date().toISOString();
 
 interface ItemRow {
   id: number;
@@ -44,7 +48,7 @@ const toItem = (r: ItemRow): InventoryItem => ({
 // ---------- Inventory ----------
 
 export async function listItems(db: SQLiteDatabase): Promise<InventoryItem[]> {
-  const rows = await db.getAllAsync<ItemRow>('SELECT * FROM items ORDER BY expires_at ASC');
+  const rows = await db.getAllAsync<ItemRow>('SELECT * FROM items WHERE deleted = 0 ORDER BY expires_at ASC');
   return rows.map(toItem);
 }
 
@@ -65,8 +69,8 @@ export async function addItem(db: SQLiteDatabase, n: NewItem): Promise<void> {
   const purchasedAt = n.purchasedAt ?? toISODate(new Date());
   const expiresAt = n.expiresAt ?? estimateExpiry(category, location, purchasedAt);
   await db.runAsync(
-    `INSERT INTO items (name, category, location, count, qty_level, purchased_at, expires_at, expiry_estimated)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO items (uid, name, category, location, count, qty_level, purchased_at, expires_at, expiry_estimated, updated_at, dirty)
+     VALUES (${UUID_SQL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
     n.name,
     category,
     location,
@@ -75,6 +79,7 @@ export async function addItem(db: SQLiteDatabase, n: NewItem): Promise<void> {
     purchasedAt,
     expiresAt,
     n.expiresAt ? 0 : 1,
+    now(),
   );
 }
 
@@ -99,15 +104,16 @@ export async function updateItem(
     vals.push(patch.expiresAt);
   }
   if (!cols.length) return;
-  await db.runAsync(`UPDATE items SET ${cols.join(', ')} WHERE id = ?`, ...vals, id);
+  await db.runAsync(`UPDATE items SET ${cols.join(', ')}, updated_at = ?, dirty = 1 WHERE id = ?`, ...vals, now(), id);
 }
 
 /** Move to the freezer and re-estimate the expiry from today. */
 export async function freezeItem(db: SQLiteDatabase, item: InventoryItem): Promise<void> {
   const exp = estimateExpiry(item.category, 'freezer', toISODate(new Date()));
   await db.runAsync(
-    `UPDATE items SET location = 'freezer', expires_at = ?, expiry_estimated = 1 WHERE id = ?`,
+    `UPDATE items SET location = 'freezer', expires_at = ?, expiry_estimated = 1, updated_at = ?, dirty = 1 WHERE id = ?`,
     exp,
+    now(),
     item.id,
   );
 }
@@ -118,7 +124,8 @@ export async function removeItem(
   outcome: 'used' | 'tossed',
 ): Promise<void> {
   await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM items WHERE id = ?', item.id);
+    // Soft delete so the removal can sync to the rest of the household.
+    await db.runAsync('UPDATE items SET deleted = 1, dirty = 1, updated_at = ? WHERE id = ?', now(), item.id);
     await db.runAsync(
       'INSERT INTO waste_log (name, outcome, logged_at) VALUES (?, ?, ?)',
       item.name,
@@ -177,16 +184,18 @@ export async function saveProfile(db: SQLiteDatabase, p: Profile): Promise<void>
 
 export async function saveRecipe(db: SQLiteDatabase, r: Recipe): Promise<void> {
   await db.runAsync(
-    'INSERT INTO recipes (id, json, created_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json',
+    `INSERT INTO recipes (id, json, created_at, updated_at, dirty, deleted) VALUES (?, ?, ?, ?, 1, 0)
+     ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at, dirty = 1, deleted = 0`,
     r.id,
     JSON.stringify(r),
-    new Date().toISOString(),
+    now(),
+    now(),
   );
 }
 
 export async function listSavedRecipes(db: SQLiteDatabase): Promise<Recipe[]> {
   const rows = await db.getAllAsync<{ json: string }>(
-    'SELECT json FROM recipes ORDER BY created_at DESC',
+    'SELECT json FROM recipes WHERE deleted = 0 ORDER BY created_at DESC',
   );
   return rows.map((r) => JSON.parse(r.json) as Recipe);
 }
@@ -259,7 +268,7 @@ export async function recentCooks(db: SQLiteDatabase, limit = 10): Promise<strin
 
 export async function listShopping(db: SQLiteDatabase): Promise<ShoppingItem[]> {
   const rows = await db.getAllAsync<{ id: number; name: string; reason: string; checked: number; added_at: string }>(
-    'SELECT * FROM shopping ORDER BY checked ASC, added_at ASC',
+    'SELECT * FROM shopping WHERE deleted = 0 ORDER BY checked ASC, added_at ASC',
   );
   return rows.map((r) => ({ id: r.id, name: r.name, reason: r.reason, checked: r.checked === 1, addedAt: r.added_at }));
 }
@@ -279,10 +288,11 @@ export async function addToShopping(
     );
     if (dupe) continue;
     await db.runAsync(
-      'INSERT INTO shopping (name, reason, checked, added_at) VALUES (?, ?, 0, ?)',
+      `INSERT INTO shopping (uid, name, reason, checked, added_at, updated_at, dirty) VALUES (${UUID_SQL}, ?, ?, 0, ?, ?, 1)`,
       name,
       e.reason ?? '',
-      new Date().toISOString(),
+      now(),
+      now(),
     );
     current.push({ id: -1, name, reason: '', checked: false, addedAt: '' });
     added += 1;
@@ -291,11 +301,11 @@ export async function addToShopping(
 }
 
 export async function setShoppingChecked(db: SQLiteDatabase, id: number, checked: boolean): Promise<void> {
-  await db.runAsync('UPDATE shopping SET checked = ? WHERE id = ?', checked ? 1 : 0, id);
+  await db.runAsync('UPDATE shopping SET checked = ?, updated_at = ?, dirty = 1 WHERE id = ?', checked ? 1 : 0, now(), id);
 }
 
 export async function removeShopping(db: SQLiteDatabase, id: number): Promise<void> {
-  await db.runAsync('DELETE FROM shopping WHERE id = ?', id);
+  await db.runAsync('UPDATE shopping SET deleted = 1, dirty = 1, updated_at = ? WHERE id = ?', now(), id);
 }
 
 /** "I'm home from the store": checked items move into My Food. */
@@ -303,7 +313,7 @@ export async function moveCheckedToInventory(db: SQLiteDatabase): Promise<number
   const checked = (await listShopping(db)).filter((i) => i.checked);
   for (const i of checked) {
     await addItem(db, { name: i.name });
-    await db.runAsync('DELETE FROM shopping WHERE id = ?', i.id);
+    await removeShopping(db, i.id);
   }
   return checked.length;
 }

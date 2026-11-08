@@ -13,6 +13,7 @@ import { aiConfigured, generateRecipes } from '../../ai/client';
 import { siteName } from '../../domain/recipeImport';
 import { addToShopping, applyChanges, freezeItem } from '../../db/repo';
 import { defaultStyle } from '../../domain/nutrition';
+import { CookingFor } from '../../components/CookingFor';
 import { amountAfterUse, describeAmount } from '../../domain/inventory';
 import { Button, C, Card, Chip, ExpiryBadge, H2, Input, Muted, Row } from '../../components/ui';
 
@@ -23,7 +24,8 @@ const BUY_OPTS = [0, 1, 2, 3];
 export default function Tonight() {
   const db = useSQLiteContext();
   const data = useAppData();
-  const { items, profile, ratings, allRecipes, ready } = data;
+  // planningProfile includes the allergies of whoever you're cooking for.
+  const { items, planningProfile: profile, ratings, allRecipes, ready } = data;
   const [filters, setFilters] = useState<Filters>({ canBuy: 0 });
   const [ask, setAsk] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -139,6 +141,7 @@ export default function Tonight() {
       )}
 
       <View style={{ gap: 8 }}>
+        <CookingFor />
         <Row>
           {TIME_OPTS.map(([label, v]) => (
             <Chip key={label} label={label} active={filters.maxMinutes === v} onPress={() => setFilters({ ...filters, maxMinutes: v })} />

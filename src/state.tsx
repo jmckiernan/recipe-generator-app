@@ -1,5 +1,6 @@
 // App-wide data: loads from SQLite once, exposes a refresh() after writes,
-// and keeps the nightly nudges in sync with the inventory.
+// keeps the nightly nudges in sync with the inventory, and (when signed in to a
+// household) syncs shared food, list, and recipes with the other members.
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
@@ -9,11 +10,19 @@ import { BUILTIN_RECIPES } from './data/recipes';
 import { rescheduleNudges } from './notifications';
 import { makeVariant, parseVariantId } from './domain/variants';
 import type { Macros } from './domain/nutrition';
+import { useHouseholdSync, type HouseholdSync } from './sync/useHouseholdSync';
+import { effectiveAllergies } from './domain/household';
 
 interface AppData {
   ready: boolean;
   items: InventoryItem[];
   profile: Profile;
+  /**
+   * Your profile with the allergies of whoever you're cooking for added.
+   * Use this for anything that suggests food; use `profile` for editing settings.
+   */
+  planningProfile: Profile;
+  household: HouseholdSync;
   ratings: Rating[];
   savedRecipes: Recipe[];
   /** Built-in + saved AI recipes. */
@@ -72,7 +81,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     rescheduleNudges(d.items, d.profile).catch(() => {});
   }, []);
 
-  const refresh = useCallback(async () => apply(await loadAll(db)), [db, apply]);
+  const reload = useCallback(async () => apply(await loadAll(db)), [db, apply]);
+  const household = useHouseholdSync(db, loaded?.profile ?? null, reload);
+  const { scheduleSync } = household;
+  // After any local change: re-read, then upload to the household shortly after.
+  const refresh = useCallback(async () => {
+    await reload();
+    scheduleSync();
+  }, [reload, scheduleSync]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,8 +113,16 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       today: { kcal: 0, protein: 0, carbs: 0, fat: 0, meals: 0 },
     };
     const allRecipes = [...d.savedRecipes, ...BUILTIN_RECIPES];
+    const planningProfile: Profile = household.household
+      ? {
+          ...d.profile,
+          allergies: effectiveAllergies(d.profile.allergies, household.members, d.profile.cookingFor, household.myUserId),
+        }
+      : d.profile;
     return {
       ...d,
+      planningProfile,
+      household,
       ready: loaded !== null,
       allRecipes,
       refresh,
@@ -107,10 +131,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         if (direct) return direct;
         const { baseId, style } = parseVariantId(id);
         const base = allRecipes.find((r) => r.id === baseId) ?? pending.get(baseId);
-        return base ? makeVariant(base, style, d.profile.allergies).recipe : undefined;
+        return base ? makeVariant(base, style, planningProfile.allergies).recipe : undefined;
       },
     };
-  }, [loaded, refresh]);
+  }, [loaded, refresh, household]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

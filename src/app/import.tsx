@@ -19,7 +19,7 @@ import { Button, C, Card, Chip, H1, H2, Input, Muted, Row } from '../components/
 export default function ImportScreen() {
   const params = useLocalSearchParams<{ url?: string }>();
   const db = useSQLiteContext();
-  const { items, profile, refresh } = useAppData();
+  const { items, planningProfile: profile, refresh } = useAppData();
   const [url, setUrl] = useState(params.url ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
